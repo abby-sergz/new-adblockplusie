@@ -1681,19 +1681,26 @@ void CPluginClass::EnsureWebBrowserConnected(const ATL::CComPtr<IWebBrowser2>& w
   }
   ATL::CComPtr<IUnknown> listenerRefCounterGuard(listenerImpl->GetUnknown());
   std::weak_ptr<Data> dataForCapturing = m_data;
-  auto onListenerDestroy = [webBrowser, dataForCapturing]
+  auto currentThreadId = std::this_thread::get_id();
+  auto onListenerDestroy = [webBrowser, dataForCapturing, currentThreadId]
   {
+    assert(currentThreadId == std::this_thread::get_id() && "Thread ID should be the same");
     if (auto data = dataForCapturing.lock())
     {
       data->connectedWebBrowsersCache.erase(webBrowser);
+    } else {
+      assert(false && "destroy listener cannot get access");
     }
   };
-  auto onReloaded = [webBrowser, dataForCapturing]
+  auto onReloaded = [webBrowser, dataForCapturing, currentThreadId]
   {
+    assert(currentThreadId == std::this_thread::get_id() && "Thread ID should be the same");
     if (auto data = dataForCapturing.lock())
     {
       auto frameSrc = GetLocationUrl(*webBrowser);
       data->tab->OnDocumentComplete(webBrowser, frameSrc, data->webBrowser2.IsEqualObject(webBrowser));
+    } else {
+      assert(false && "on reload listener cannot get access");
     }
   };
   if (FAILED(listenerImpl->Init(webBrowser, onListenerDestroy, onReloaded)))
